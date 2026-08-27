@@ -1,6 +1,6 @@
 ---
 name: dashi-ppt
-description: 制作 PPT、演示文稿、幻灯片、汇报材料时使用。Dashi PPT 基于预置视觉主题组合页面,生成可离线打开、可在浏览器编辑的 HTML 演示,支持导出 PPTX / PDF 文件。
+description: 制作 PPT、演示文稿、幻灯片、汇报材料时使用。Dashi PPT 基于预置视觉主题组合页面,生成可离线打开、可在浏览器编辑的 HTML 演示,并通过 PptxGenJS 原生导出可编辑 PPTX。
 ---
 
 # Dashi PPT
@@ -54,7 +54,7 @@ node <skill-root>/scripts/check_latest_version.mjs
 - 非交互/一次性执行(无法追问)时:未指定风格按内容主题自选已验收主题;无真实素材且不能生图时优先选无媒体页,不调 image-gen;最终说明全部假设。
 - Deck 语言跟随用户沟通语言:非中文用户在 `goal.json` 顶层加 `"language": "en"`;全部文案字段用目标语言撰写,页面自带的默认中文文案(含结尾页“感谢阅读”类装饰字段)一律覆盖,不得残留中文。编辑器界面语言自动跟随打开者的系统语言,右上角可手动切换,无需在生成时处理。
 - 交付格式:默认 HTML;“生成 PPT”“做 PPT”“做一个 PPT”“制作 ppt”表示 PPT 呈现形态。只有明确 `PPTX`、`PowerPoint`、`可编辑 PPTX`、`导出 PPTX`、`PPT 格式` 或“格式/文件类型为 PPT/PPTX”时才交付 PPTX 文件。
-- PPTX 文件:仍先生成 HTML 并启动本机预览服务,再调用本机 HTTP 导出服务;最终只给 PPTX 文件路径或下载结果。
+- PPTX 文件:先生成并校验 `goal.json`,再运行 `npm --prefix <skill-root>/project run export:pptx -- --goal <goal.json> --out <out.pptx>`；此链路不启动浏览器。最终只给 PPTX 文件路径或下载结果。
 - 当前可选风格: `theme01` 轻拟态风、`theme02` 炫光紫绿风、`theme03` 深浅代码风、`theme04` 玻璃糖果风、`theme05` 色谱图表风、`theme06` 深色图谱风、`theme07` 冷白调研风、`theme08` 黑金实验风、`theme09` 深蓝杂志风、`theme10` 金色指数风、`theme11` 高能增长风、`theme12` 声波霓虹风。
 - 普通自动选择不选 `theme10`;只有用户明确指定,或金融/投资指数内容强相关且 inspect 确认可填时才用。
 <!-- theme-choice-hints:start -->
@@ -99,9 +99,8 @@ node <skill-root>/scripts/check_latest_version.mjs
 - 允许用顶层 `text` 覆盖可见文字槽位,但只用于替换文字内容。不要在普通生成中启动浏览器批量抽取全页面文本槽位;只有用户明确要求“彻底清除所有模板默认文案/逐页校对可见文案”时才做运行时槽位抽取。
 - 禁止复用 `output/` 里已有的旧 `goal.json` 或旧 HTML。每次请求都新建本次输出目录和本次 JSON 计划。
 - 输出目录写在当前会话工作目录,不要写入 `<skill-root>/project/output`。
-- HTML 交付:给用户的预览地址只给 `http://127.0.0.1:<port>/`(不给 https 或 .local 变体);本机 HTTP 可导出 HTML/PDF/PPTX,本地 HTML 或 `file://` 不能导出可编辑 PPTX。不要返回 `theme-preview`。在自带浏览器的 Agent APP(如 Codex)里生成时,提醒用户导出 PDF/PPTX 前把该地址在系统浏览器中打开。
-- PPTX 交付:调用 `/api/export-editable-pptx`;最终只给 PPTX 文件路径或下载结果。
-- 无浏览器会话、脚本直调、或预览导出接口返回 403/5xx 时:改用 `npm run export:pptx -- <deck>/ppt <out.pptx>`(PDF 用 `export:pdf`)直接产出文件,不需要先起浏览器会话。
+- HTML 交付:给用户最终 `index.html` 文件路径；它可离线打开和编辑。不要返回 `theme-preview`。
+- PPTX 交付:直接运行原生 PptxGenJS 导出命令；不依赖 HTTP 服务、浏览器会话或页面截图。最终只给 PPTX 文件路径或下载结果。
 - 如果输出正文里出现与用户主题无关的默认文案,例如 AI Capital / 投融资 / SoundWave / 声浪 / Key Metrics / Roadmap / End of Report 等,必须重写 JSON 后重新渲染,不能交付。
 
 ## 媒体工作流
@@ -123,12 +122,11 @@ node <skill-root>/scripts/check_latest_version.mjs
 7. 图表页填入自己的数据后,页内 insight/读图/结论类文案字段必须据新数据一并改写,不保留默认结论。
 8. 运行渲染脚本输出 `output/<deck-name>/ppt/index.html`;脚本会使用 Skill 内置生成器,不要切回外部项目目录。
 9. 渲染后核对素材路径,缺失时补最终 `ppt/assets`。
-10. 确认脚本完成 `validate:swiss`、`validate:goal-copy` 和 `validate:four-variant-quality` 校验;后者在同一浏览器会话批量检查并截图每页 v4。一次用户生成任务只创建一个 `workflowRunId`,所有 scaffold attempts 和后续阶段复用它。
-11. 渲染脚本会启动本地 HTTP 预览服务并输出 `http://127.0.0.1:<port>/`;需要指定端口时设置 `DASHI_PPT_PREVIEW_PORT` 后再运行脚本(端口用 5200-5999 段,4178/4300/4400 为用户保留端口不可用)。只能用该预览服务,不得用 `python -m http.server`、`npx serve` 等静态服务器替代:静态服务器没有导出和自动保存接口。预览服务下编辑自动保存到 `index.html` 本体;`file://` 打开的本地文件不自动保存,交付前需导出。
-12. 对最终产物执行成果验收:模板方案只做一次批量内容映射、尺寸和运行时检查;浏览器视觉验收一次查看全部 v4 截图。
-13. v4 待修正时只修改失败页并重新渲染一次;不重新选模板,不重写其余页面,不重复整稿视觉检查。
-14. 运行 `node <skill-root>/scripts/check_latest_version.mjs` 做静默版本检查。
-15. 验收通过后按交付格式回复:HTML 只给 `http://127.0.0.1:<port>/`;PPTX 调用 `/api/export-editable-pptx` 后只给文件路径或下载结果。
+10. 对 HTML 执行内容映射和尺寸检查；需要 PPTX 时直接运行 `export:pptx`，再检查 OOXML 完整性、元素溢出和主题视觉一致性。
+11. 对最终产物执行成果验收；PPTX 使用可复现的渲染图或 PowerPoint/LibreOffice 进行视觉检查，不把浏览器作为导出依赖。
+12. v4 待修正时只修改失败页并重新渲染一次;不重新选模板,不重写其余页面,不重复整稿视觉检查。
+13. 运行 `node <skill-root>/scripts/check_latest_version.mjs` 做静默版本检查。
+14. 验收通过后按交付格式回复:HTML 给 `index.html` 文件路径；PPTX 给原生导出的文件路径或下载结果。
 
 ## 成果验收与返工
 
@@ -240,7 +238,7 @@ Windows PowerShell:
 
 ## 交付能力
 
-编辑器和左侧目录始终只显示 N 个逻辑页,同页候选切换不改变逻辑页码。右侧面板可切换或标记 4 个方案;前三个模板方案可调 props,v4 为固定的 Agent 定制方案。仅在 `variantOutputMode:"comparison"` 的导出阶段派生 4N 页(PDF/PPTX 和用户明确要求的比较稿使用此模式);`"selected-only"` 导出 N 页。面向用户交付的页面底部不显示页码标识、翻页引导、圆点导航或索引提示。
+编辑器和左侧目录始终只显示 N 个逻辑页,同页候选切换不改变逻辑页码。右侧面板可切换或标记 4 个方案;前三个模板方案可调 props,v4 为固定的 Agent 定制方案。原生 PPTX 导出使用每页已选内容；`"selected-only"` 导出 N 页。面向用户交付的页面底部不显示页码标识、翻页引导、圆点导航或索引提示。
 
 ## 页面属性契约
 

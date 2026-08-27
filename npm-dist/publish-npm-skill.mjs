@@ -76,15 +76,15 @@ function main() {
     fs.writeFileSync(path.join(staging, 'package.json'), `${JSON.stringify({
       name: PACKAGE_NAME,
       version,
-      description: 'Dashi PPT skill installer — offline-editable HTML decks with PPTX/PDF export. 国内可经 npmmirror 安装。',
+      description: 'Dashi PPT skill installer — offline-editable HTML decks with native editable PPTX export. 国内可经 npmmirror 安装。',
       bin: { 'dashi-ppt-skill': 'bin/install.mjs' },
       files: ['bin', 'skill', 'LICENSE'],
-      // 与仓库一致:skill 本体 AGPL-3.0(html-deck-to-pptx 子包为专有组件,见其目录内 LICENSE)。
+      // 本 fork 的 Skill 与原生 PptxGenJS 导出适配器统一使用 AGPL-3.0。
       license: 'AGPL-3.0-only',
       repository: { type: 'git', url: 'git+https://github.com/chuspeeism/dashi-ppt-skill.git' },
       homepage: 'https://github.com/chuspeeism/dashi-ppt-skill#readme',
       keywords: ['agent-skill', 'ppt', 'presentation', 'claude', 'codex'],
-      // 与导出子包 html-deck-to-pptx 的 engines 对齐(README/SKILL 同步声明 20+)。
+      // 与 PptxGenJS 原生导出链路的运行时要求对齐。
       engines: { node: '>=20' },
     }, null, 2)}\n`);
     fs.writeFileSync(path.join(staging, 'README.md'), [
@@ -101,7 +101,7 @@ function main() {
       '',
       'Options: `--dir <skills-root>` to target a specific skills directory, `--list` to show detected locations.',
       '',
-      'Licensed under AGPL-3.0; the bundled `html-deck-to-pptx` export engine is proprietary, licensed for use only as part of this skill (see its LICENSE). Installer source: `npm-dist/` in the repository.',
+      'Licensed under AGPL-3.0. This fork uses native PptxGenJS export and does not bundle the proprietary legacy exporter. Installer source: `npm-dist/` in the repository.',
       '',
     ].join('\n'));
 

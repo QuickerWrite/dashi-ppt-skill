@@ -62,7 +62,6 @@ if (-not (Test-Path -LiteralPath $projectRoot -PathType Container)) {
 
 $node = (Get-Command node.exe -ErrorAction Stop).Source
 $npm = (Get-Command npm.cmd -ErrorAction Stop).Source
-$npx = (Get-Command npx.cmd -ErrorAction Stop).Source
 
 Push-Location $projectRoot
 try {
@@ -92,28 +91,12 @@ try {
         Invoke-Native $npm 'install'
     }
 
-    # 镜像模式下 playwright 浏览器二进制同样走 npmmirror,否则国内下载必败。
-    if ((Test-Path -LiteralPath '.npmrc') -and (Select-String -LiteralPath '.npmrc' -SimpleMatch 'registry=https://registry.npmmirror.com' -Quiet)) {
-        if (-not $env:PLAYWRIGHT_DOWNLOAD_HOST) {
-            $env:PLAYWRIGHT_DOWNLOAD_HOST = 'https://cdn.npmmirror.com/binaries/playwright'
-        }
-    }
-
-    # chromium headless shell:幂等(已装秒过),下载失败不阻塞生成(导出回退系统 Chrome)。
-    & $npx '--no-install' 'playwright-core' 'install' 'chromium-headless-shell' *> $null
-
     $outputDirectory = Split-Path -Parent $outputPath
     New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
 
     Invoke-Native $npm 'run' 'props:safe' '--' '--goal' $goalPath '--write'
     Invoke-Native $npm 'run' 'render:goal' '--' $goalPath $outputPath
-    Invoke-Native $npm 'run' 'validate:swiss' '--' $outputPath
-    Invoke-Native $npm 'run' 'validate:goal-copy' '--' $goalPath $outputPath
-    Invoke-Native $npm 'run' 'validate:four-variant-quality' '--' '--deck' $outputPath '--goal' $goalPath
-
-    # 缺省端口落在 SKILL.md 约定的 5200-5999 段(4178/4300/4400 为用户保留端口)。
-    $previewPort = if ($env:DASHI_PPT_PREVIEW_PORT) { $env:DASHI_PPT_PREVIEW_PORT } else { '5200' }
-    Invoke-Native $npm 'run' 'preview:start' '--' $outputDirectory $previewPort
+    Write-Output "HTML deck written to $outputPath"
 } finally {
     Pop-Location
 }

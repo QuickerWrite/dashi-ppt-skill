@@ -12,21 +12,16 @@
     "props:safe": "node scripts/write-safe-props.mjs",
     "goal:scaffold": "node scripts/goal-scaffold.mjs",
     "render:goal": "tsx scripts/render-goal-deck.jsx",
-    "export:pptx": "node scripts/export-pptx.mjs",
-    "export:pdf": "node scripts/export-pptx.mjs --pdf"
+    "export:pptx": "node scripts/export-native-pptx.mjs"
   },
   "dependencies": {
     "gsap": "^3.15.0",
-    "html-to-image": "^1.11.13",
     "pptxgenjs": "^4.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "tsx": "^4.20.0",
-    "esbuild": "^0.28.0",
-    "pngjs": "^7.0.0",
-    "playwright-core": "^1.60.0",
-    "pdf-lib": "^1.17.1"
+    "esbuild": "^0.28.0"
   }
 }

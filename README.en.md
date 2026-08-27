@@ -1,9 +1,9 @@
 # Dashi PPT Skill · Web Decks / Per-Page Console / Editable PPTX Export
 
 > [!IMPORTANT]
-> The `quickerwrite-runner-v1` branch of this fork is an AGPL-isolated runtime for QuickerWrite. It adds a neutral JSON v1 job protocol, HMAC signing, asynchronous jobs, HTML/PPTX/PDF artifact downloads, local previews, and a corresponding-source download. QuickerWrite communicates with it only over HTTP and never imports this repository.
+> The `quickerwrite-runner-v1` branch of this fork is an AGPL-isolated runtime for QuickerWrite. It adds a neutral JSON v1 job protocol, HMAC signing, asynchronous jobs, HTML/PPTX artifact downloads, local previews, and a corresponding-source download. QuickerWrite communicates with it only over HTTP and never imports this repository.
 >
-> This branch is trimmed against QuickerWrite's actual execution graph: unused layout-query, layout-inspection, interactive preview-launcher, and three standalone validation CLIs were removed, while the three-layout candidate flow was reduced to one selected layout per slide because QuickerWrite has no candidate picker. The deployment image no longer contains npm publishing tools, Agent installation wrappers, issue templates, or documentation-only resources. All 12 themes, goal scaffolding, safe-prop generation, HTML rendering, and PPTX/PDF export remain. See [`quickerwrite-runner/README.md`](./quickerwrite-runner/README.md) for deployment and API details. Copyright and AGPL-3.0 licensing are unchanged.
+> This branch replaces browser capture with native PptxGenJS primitives: no Chromium, Playwright, OpenSSL, or proprietary exporter is installed. All 12 themes have native visual adapters, while text, shapes, and charts remain editable. See [`quickerwrite-runner/README.md`](./quickerwrite-runner/README.md) for deployment and API details. Copyright and AGPL-3.0 licensing are unchanged.
 
 ![GitHub stars](https://img.shields.io/github/stars/chuspeeism/dashi-ppt-skill?style=flat-square)
 ![Skill](https://img.shields.io/badge/Skill-Agent-111111?style=flat-square)
@@ -20,7 +20,7 @@
 
 > 🌏 **中文版：[README.md](./README.md)**
 
-A PPT skill built for people who actually present at work. Hand a document to your AI agent and get back a deck where every page carries its own editing console — fix whatever you don't like right in the browser, then export a real, editable PPTX with one click.
+A PPT skill built for people who actually present at work. Hand a document to your AI agent and get back a deck where every page carries its own editing console; the agent can then generate a real, editable PPTX without a browser export step.
 
 - 12 visual themes
 - 1,020 layout pages
@@ -57,7 +57,7 @@ Or hand this to your AI agent:
 Install the dashi-ppt skill for me: npx dashi-ppt-skill@latest
 ```
 
-Requirements: Node.js 20+ and npm; exporting PPTX / PDF requires Chrome / Chromium / Edge installed locally.
+Requirements: Node.js 20+ and npm; PPTX export does not require a browser.
 
 ## What You Get
 
@@ -67,7 +67,7 @@ Requirements: Node.js 20+ and npm; exporting PPTX / PDF requires Chrome / Chromi
 - **A console on every page**: sliders, toggles, dropdowns — switch layouts, tune module counts, change palettes, shift the page's emphasis
 - **Editable text**: click any text to edit in place
 - **Media replacement**: click or drag to fill media slots; text-only source material automatically reserves image placeholders
-- **One-click export**: offline HTML bundle / PDF / genuinely editable PPTX
+- **Native export**: offline HTML bundle / genuinely editable PPTX
 
 ## Good Fit / Not a Fit
 
@@ -80,7 +80,7 @@ Requirements: Node.js 20+ and npm; exporting PPTX / PDF requires Chrome / Chromi
 - **Built for agents**: HTML is something agents can read, modify, and validate directly; every page is "layout + copy fields"
 - **More expressive**: entrance animations, page transitions, interactive controls, light/dark switching
 - **The output is the editor**: what you get is a web-based deck editor — flip, edit text, swap images, adjust layouts, ready the moment it opens
-- **PPTX export**: one click produces a real PPTX — reconstructed node by node, text stays editable
+- **PPTX export**: PptxGenJS creates native text, shapes, and charts that remain editable
 
 HTML deck vs. exported PPTX, page by page:
 
@@ -158,15 +158,12 @@ High-frequency layouts — TOC, tables, number posters, image-and-text:
 
 ## Export
 
-![One-click editable PPTX export](https://github.com/chuspeeism/dashi-ppt-skill/releases/download/readme-assets-v1/export-pptx.gif)
-
 You can also skip the HTML intermediate entirely — tell the agent "use this skill to produce a PPT file" and go from prompt to PPTX in one step.
 
-Command-line export:
+Command-line export (reads Dashi `goal.json` directly and starts no browser):
 
 ```bash
-npm --prefix <project-dir> run export:pptx -- <deck-output-dir>/ppt out.pptx
-npm --prefix <project-dir> run export:pdf  -- <deck-output-dir>/ppt
+npm --prefix <project-dir> run export:pptx -- --goal <deck-output-dir>/goal.json --out out.pptx
 ```
 
 ## FAQ
@@ -183,14 +180,14 @@ npm --prefix <project-dir> run export:pdf  -- <deck-output-dir>/ppt
 **Does it need the network? Is my content safe?**
 > Zero content upload: your documents and deck content never leave your machine — generation, editing, and export all run locally, and the output opens offline. Only two things touch the network: npm dependency installation on first generation, and a silent version check after tasks complete (it only fetches the latest version number, nothing is uploaded). The local preview server is reachable within your LAN for viewing only; export endpoints are local-only.
 
-**PPTX export fails?**
-> Exporting PPTX / PDF requires a local Chrome / Chromium / Edge (point to it with the `CHROME_PATH` environment variable if needed).
+**Will PPTX be pixel-identical to HTML?**
+> HTML animation, filters, and CSS effects cannot be represented verbatim in OOXML. Native export preserves each theme's palette, typography hierarchy, composition rhythm, and signature motifs as closely as possible while keeping content editable.
 
 ## License
 
 This project is open-sourced under the **GNU Affero General Public License v3.0 (AGPL-3.0)** — the strongest copyleft license among OSI-approved licenses. You may freely use, modify, and distribute this project (including commercially); but if you distribute a modified version, or provide a network service based on this project or its modifications (e.g. SaaS), you must make the complete corresponding source code available to users under AGPL-3.0.
 
-**Exception**: the subpackage `project/packages/html-deck-to-pptx` (the export engine) is a **proprietary component**, licensed for use only as an integrated part of this skill — extracting, copying, or redistributing it separately is prohibited (see the LICENSE in that directory; versions up to v0.2.7 were historically published under MIT, and that grant applies to those versions only).
+This fork removes the proprietary exporter from the upstream repository. The PptxGenJS adapters and all fork modifications are distributed under AGPL-3.0.
 
 Copyright (c) 2026 [chuspeeism](https://github.com/chuspeeism). Full license text in the root [LICENSE](LICENSE) file. For commercial licensing beyond AGPL-3.0, contact the author.
 

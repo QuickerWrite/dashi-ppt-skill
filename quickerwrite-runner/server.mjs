@@ -56,8 +56,8 @@ async function generate(id, spec) {
   try {
     fs.mkdirSync(pptDir, { recursive: true });
     const content = briefs(spec); if (!content.length) throw new Error('slides must not be empty');
-    const briefsFile = path.join(dir, 'briefs.json'); const goal = path.join(dir, 'goal.json'); const html = path.join(pptDir, 'index.html');
-    fs.writeFileSync(briefsFile, JSON.stringify(content, null, 2)); const selectedTheme = theme(spec.theme, spec.title);
+    const briefsFile = path.join(dir, 'briefs.json'); const specFile = path.join(dir, 'spec.json'); const goal = path.join(dir, 'goal.json'); const html = path.join(pptDir, 'index.html');
+    fs.writeFileSync(briefsFile, JSON.stringify(content, null, 2)); fs.writeFileSync(specFile, JSON.stringify(spec, null, 2)); const selectedTheme = theme(spec.theme, spec.title);
     job.status = 'running'; job.progress = 10; job.stage = 'scaffolding';
     await exec(process.execPath, [path.join(project, 'scripts/goal-scaffold.mjs'), '--title', String(spec.title || 'Presentation'), '--goal', String(spec.title || 'Presentation'), '--audience', String(spec.audience || '目标受众'), '--theme', selectedTheme, '--pages', String(content.length), '--content-briefs', briefsFile, '--layout-variants', '1', '--seed', id, '--workflow-run-id', id, '--chunk-size', '5', '--out', goal]);
     job.progress = 40; job.stage = 'validating_goal'; await exec(process.execPath, [path.join(project, 'scripts/write-safe-props.mjs'), '--goal', goal, '--write']);
@@ -67,10 +67,12 @@ async function generate(id, spec) {
     const rendered = fs.readFileSync(html, 'utf8').replace(/https:\/\/github\.com\/[^"]+/g, '/source');
     fs.writeFileSync(html, rendered);
     const requested = Array.isArray(spec.outputs) ? spec.outputs : ['pptx', 'html']; const artifacts = [];
+    const unsupported = requested.filter(kind => !['html', 'pptx'].includes(kind));
+    if (unsupported.length) throw new Error(`unsupported outputs: ${[...new Set(unsupported)].join(', ')}; supported outputs are html and pptx`);
     if (requested.includes('html')) artifacts.push({ type: 'html', file_name: `${safe(spec.title)}.html`, mime_type: 'text/html; charset=utf-8', download_url: `/v1/jobs/${id}/artifacts/html` });
-    if (requested.includes('pptx')) { job.progress = 72; job.stage = 'exporting_pptx'; const file = path.join(dir, `${safe(spec.title)}.pptx`); await exec(process.execPath, [path.join(project, 'scripts/export-pptx.mjs'), pptDir, file]); artifacts.push({ type: 'pptx', file_name: path.basename(file), mime_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', download_url: `/v1/jobs/${id}/artifacts/pptx` }); }
-    if (requested.includes('pdf')) { job.progress = 84; job.stage = 'exporting_pdf'; const file = path.join(dir, `${safe(spec.title)}.pdf`); await exec(process.execPath, [path.join(project, 'scripts/export-pptx.mjs'), pptDir, file, '--pdf']); artifacts.push({ type: 'pdf', file_name: path.basename(file), mime_type: 'application/pdf', download_url: `/v1/jobs/${id}/artifacts/pdf` }); }
-    Object.assign(job, { artifacts, status: 'succeeded', progress: 100, stage: 'completed', theme: selectedTheme });
+    if (requested.includes('pptx')) { job.progress = 72; job.stage = 'exporting_native_pptx'; const file = path.join(dir, `${safe(spec.title)}.pptx`); await exec(process.execPath, [path.join(project, 'scripts/export-native-pptx.mjs'), '--spec', specFile, '--goal', goal, '--out', file]); artifacts.push({ type: 'pptx', file_name: path.basename(file), mime_type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation', download_url: `/v1/jobs/${id}/artifacts/pptx` }); }
+    if (!artifacts.length) throw new Error('supported outputs are html and pptx');
+    Object.assign(job, { artifacts, status: 'succeeded', progress: 100, stage: 'completed', theme: selectedTheme, pptx_renderer: 'pptxgenjs-native-v1' });
   } catch (error) { Object.assign(job, { status: 'failed', stage: 'failed', error: String(error?.message || error) }); }
 }
 function file(res, location, type) { if (!fs.existsSync(location)) return json(res, 404, { error: 'artifact not found' }); const data = fs.readFileSync(location); res.writeHead(200, { 'content-type': type, 'content-length': data.length }); res.end(data); }
@@ -90,10 +92,10 @@ http.createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/v1/jobs') {
     let spec; try { spec = JSON.parse(raw.toString('utf8')); } catch { return json(res, 400, { error: 'invalid JSON' }); }
     if (spec.protocol_version !== '1.0') return json(res, 400, { error: 'unsupported protocol_version' });
-    const id = crypto.randomUUID(); jobs.set(id, { job_id: id, status: 'queued', progress: 0, stage: 'queued', artifacts: [], engine_version: '0.4.11+quickerwrite-runner-v1', source_offer_url: '/source' }); setImmediate(() => generate(id, spec)); return json(res, 202, jobs.get(id));
+    const id = crypto.randomUUID(); jobs.set(id, { job_id: id, status: 'queued', progress: 0, stage: 'queued', artifacts: [], engine_version: '0.4.11+quickerwrite-runner-v2', source_offer_url: '/source' }); setImmediate(() => generate(id, spec)); return json(res, 202, jobs.get(id));
   }
   const match = url.pathname.match(/^\/v1\/jobs\/([0-9a-f-]+)$/); if (req.method === 'GET' && match) { const job = jobs.get(match[1]); return job ? json(res, 200, job) : json(res, 404, { error: 'job not found' }); }
-  const artifact = url.pathname.match(/^\/v1\/jobs\/([0-9a-f-]+)\/artifacts\/(html|pptx|pdf)$/);
+  const artifact = url.pathname.match(/^\/v1\/jobs\/([0-9a-f-]+)\/artifacts\/(html|pptx)$/);
   if (req.method === 'GET' && artifact) { const [, id, kind] = artifact; const dir = path.join(outputRoot, id); if (kind === 'html') return file(res, path.join(dir, 'ppt/index.html'), 'text/html; charset=utf-8'); const meta = jobs.get(id)?.artifacts?.find(x => x.type === kind); return meta ? file(res, path.join(dir, meta.file_name), meta.mime_type) : json(res, 404, { error: 'artifact not found' }); }
   return json(res, 404, { error: 'not found' });
 }).listen(port, host, () => console.log(`Dashi QuickerWrite runner listening on ${host}:${port}`));

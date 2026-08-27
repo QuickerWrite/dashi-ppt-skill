@@ -1,20 +1,14 @@
 FROM node:22-bookworm-slim
 WORKDIR /opt/dashi-ppt-skill
-COPY LICENSE README.md ./
-COPY quickerwrite-runner ./quickerwrite-runner
-COPY skills/dashi-ppt/assets/skill/theme-style-grid.png ./skills/dashi-ppt/assets/skill/theme-style-grid.png
-COPY skills/dashi-ppt/project/package.json skills/dashi-ppt/project/package-lock.json skills/dashi-ppt/project/.npmrc ./skills/dashi-ppt/project/
-ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+COPY --chown=node:node LICENSE README.md ./
+COPY --chown=node:node quickerwrite-runner ./quickerwrite-runner
+COPY --chown=node:node skills/dashi-ppt/assets/skill/theme-style-grid.png ./skills/dashi-ppt/assets/skill/theme-style-grid.png
+COPY --chown=node:node skills/dashi-ppt/project/package.json skills/dashi-ppt/project/package-lock.json skills/dashi-ppt/project/.npmrc ./skills/dashi-ppt/project/
 RUN cd skills/dashi-ppt/project \
  && npm ci --ignore-scripts
-COPY skills/dashi-ppt/project ./skills/dashi-ppt/project
-RUN cd skills/dashi-ppt/project \
- && npx --no-install playwright-core install --with-deps chromium-headless-shell \
- && apt-get update \
- && apt-get install -y --no-install-recommends openssl \
- && rm -rf /var/lib/apt/lists/* \
- && mkdir -p /data \
- && chown -R node:node /data /opt/dashi-ppt-skill /ms-playwright
+COPY --chown=node:node skills/dashi-ppt/project ./skills/dashi-ppt/project
+RUN mkdir -p /data \
+ && chown node:node /data
 ENV QW_RUNNER_HOST=0.0.0.0 QW_RUNNER_PORT=8080 QW_RUNNER_OUTPUT_DIR=/data
 VOLUME ["/data"]
 EXPOSE 8080
