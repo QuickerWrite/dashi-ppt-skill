@@ -1,5 +1,10 @@
 # Dashi PPT Skill · 大师 PPT / 网页 PPT / 可编辑 PPTX
 
+> [!IMPORTANT]
+> 本 fork 的 `quickerwrite-runner-v1` 分支是面向 QuickerWrite 的 AGPL 隔离运行版。它新增中立 JSON v1 作业协议、HMAC 签名、异步任务、HTML/PPTX/PDF 产物下载、本地效果图和对应源码下载；QuickerWrite 主程序只通过 HTTP 调用，不导入本仓库代码。
+>
+> 本分支按 QuickerWrite 的真实调用链裁剪：删除未使用的布局查询、布局检查、交互式预览启动器和三套独立校验 CLI，并将 QuickerWrite 没有选择界面的“三候选版式”收敛为每页一个已选版式；部署镜像不再包含 npm 发布器、Agent 安装包装、Issue 模板和说明资源。12 套主题、目标脚手架、安全属性写入、HTML 渲染以及 PPTX/PDF 导出链路全部保留。部署与接口说明见 [`quickerwrite-runner/README.md`](./quickerwrite-runner/README.md)。版权与 AGPL-3.0 许可不变。
+
 ![GitHub stars](https://img.shields.io/github/stars/chuspeeism/dashi-ppt-skill?style=flat-square)
 ![Skill](https://img.shields.io/badge/Skill-Agent-111111?style=flat-square)
 ![HTML Deck](https://img.shields.io/badge/HTML-Deck-0A7CFF?style=flat-square)

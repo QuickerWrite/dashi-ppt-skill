@@ -1,5 +1,10 @@
 # Dashi PPT Skill · Web Decks / Per-Page Console / Editable PPTX Export
 
+> [!IMPORTANT]
+> The `quickerwrite-runner-v1` branch of this fork is an AGPL-isolated runtime for QuickerWrite. It adds a neutral JSON v1 job protocol, HMAC signing, asynchronous jobs, HTML/PPTX/PDF artifact downloads, local previews, and a corresponding-source download. QuickerWrite communicates with it only over HTTP and never imports this repository.
+>
+> This branch is trimmed against QuickerWrite's actual execution graph: unused layout-query, layout-inspection, interactive preview-launcher, and three standalone validation CLIs were removed, while the three-layout candidate flow was reduced to one selected layout per slide because QuickerWrite has no candidate picker. The deployment image no longer contains npm publishing tools, Agent installation wrappers, issue templates, or documentation-only resources. All 12 themes, goal scaffolding, safe-prop generation, HTML rendering, and PPTX/PDF export remain. See [`quickerwrite-runner/README.md`](./quickerwrite-runner/README.md) for deployment and API details. Copyright and AGPL-3.0 licensing are unchanged.
+
 ![GitHub stars](https://img.shields.io/github/stars/chuspeeism/dashi-ppt-skill?style=flat-square)
 ![Skill](https://img.shields.io/badge/Skill-Agent-111111?style=flat-square)
 ![HTML Deck](https://img.shields.io/badge/HTML-Deck-0A7CFF?style=flat-square)

@@ -59,7 +59,7 @@ async function generate(id, spec) {
     const briefsFile = path.join(dir, 'briefs.json'); const goal = path.join(dir, 'goal.json'); const html = path.join(pptDir, 'index.html');
     fs.writeFileSync(briefsFile, JSON.stringify(content, null, 2)); const selectedTheme = theme(spec.theme, spec.title);
     job.status = 'running'; job.progress = 10; job.stage = 'scaffolding';
-    await exec(process.execPath, [path.join(project, 'scripts/goal-scaffold.mjs'), '--title', String(spec.title || 'Presentation'), '--goal', String(spec.title || 'Presentation'), '--audience', String(spec.audience || '目标受众'), '--theme', selectedTheme, '--pages', String(content.length), '--content-briefs', briefsFile, '--layout-variants', '3', '--seed', id, '--workflow-run-id', id, '--chunk-size', '5', '--out', goal]);
+    await exec(process.execPath, [path.join(project, 'scripts/goal-scaffold.mjs'), '--title', String(spec.title || 'Presentation'), '--goal', String(spec.title || 'Presentation'), '--audience', String(spec.audience || '目标受众'), '--theme', selectedTheme, '--pages', String(content.length), '--content-briefs', briefsFile, '--layout-variants', '1', '--seed', id, '--workflow-run-id', id, '--chunk-size', '5', '--out', goal]);
     job.progress = 40; job.stage = 'validating_goal'; await exec(process.execPath, [path.join(project, 'scripts/write-safe-props.mjs'), '--goal', goal, '--write']);
     job.progress = 55; job.stage = 'rendering_html'; await exec(path.join(project, 'node_modules/.bin/tsx'), [path.join(project, 'scripts/render-goal-deck.jsx'), goal, html]);
     // A deployed deck must not depend on GitHub navigation. The runner's
@@ -81,7 +81,10 @@ http.createServer(async (req, res) => {
   if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, engine: 'dashi' });
   if (req.method === 'GET' && url.pathname === '/source') return json(res, 200, { license: 'AGPL-3.0', download_url: '/source/archive' });
   if (req.method === 'GET' && url.pathname === '/source/archive') { try { const target = sourceArchive(); const data = fs.readFileSync(target); res.writeHead(200, { 'content-type': 'application/gzip', 'content-disposition': 'attachment; filename="dashi-ppt-skill-source.tar.gz"', 'content-length': data.length }); return res.end(data); } catch (error) { return json(res, 500, { error: String(error.message) }); } }
-  if (req.method === 'GET' && url.pathname.startsWith('/v1/previews/')) return file(res, path.join(skillRoot, 'assets/skill/theme-style-grid.png'), 'image/png');
+  if (req.method === 'GET' && new Set([
+    '/v1/previews/theme-grid',
+    '/v1/previews/hero-result',
+  ]).has(url.pathname)) return file(res, path.join(skillRoot, 'assets/skill/theme-style-grid.png'), 'image/png');
   let raw = Buffer.alloc(0); if (req.method === 'POST') { try { raw = await body(req); } catch (error) { return json(res, 413, { error: String(error.message) }); } }
   if (!auth(req, raw)) return json(res, 401, { error: 'invalid signature' });
   if (req.method === 'POST' && url.pathname === '/v1/jobs') {
