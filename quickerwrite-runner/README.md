@@ -1,8 +1,11 @@
 # QuickerWrite isolated runner
 
 This runner remains in the AGPL-3.0 repository and exposes QuickerWrite's
-neutral `v1` JSON protocol. QuickerWrite calls it over HTTP and never imports
-or packages the Dashi runtime.
+neutral `v1` JSON protocol. In QuickerWrite it is bundled under
+`api/ppt_engines` and automatically supervised by the API startup chain;
+operators do not start it or configure a Runner URL separately. QuickerWrite
+calls it over a fixed internal HTTP endpoint and never imports the Dashi
+runtime into the Django commercial core.
 
 ## Changes in this fork
 
@@ -37,6 +40,10 @@ or packages the Dashi runtime.
 | `GET` | `/v1/jobs/{id}/artifacts/{html,pptx}` | Download an artifact |
 | `GET` | `/v1/previews/{theme-grid,hero-result}` | Read the local preview sheet |
 | `GET` | `/source` and `/source/archive` | AGPL corresponding-source offer |
+
+The following standalone container is only a development/debugging option for
+this AGPL repository. It is not a separate service in QuickerWrite's Compose
+deployment:
 
 ```bash
 docker build -f quickerwrite-runner/Dockerfile -t dashi-ppt-runner:local .
