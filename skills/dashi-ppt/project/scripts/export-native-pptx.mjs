@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import pptxgen from 'pptxgenjs';
 import { getThemeProfile } from './native-pptx/theme-profiles.mjs';
@@ -38,20 +39,99 @@ pptx.defineSlideMaster({
 });
 
 for (let index = 0; index < slides.length; index += 1) {
-  const source = normalizeSlide(slides[index], index, slides.length);
+  const total = Number(spec.planned_slides) || 0;
+  const cacheKey = crypto.createHash('sha256').update(JSON.stringify([slides[index], index, themeId, spec.title, total])).digest('hex');
+  const cacheFile = args['page-cache'] ? path.join(args['page-cache'], `${index}-${cacheKey}.json`) : null;
+  const target = pptx.addSlide(`DASHI_${themeId.toUpperCase()}`);
+  if (cacheFile && fs.existsSync(cacheFile)) {
+    for (const command of readJson(cacheFile)) {
+      if (command.property) target[command.property] = command.value;
+      else target[command.method](...command.args);
+    }
+    console.log(JSON.stringify({type:'page_ready', page:index + 1, revision:cacheKey, reused:true}));
+    continue;
+  }
+  const commands = [];
+  const slide = new Proxy(target, {
+    get(object, key) {
+      if (typeof object[key] !== 'function') return object[key];
+      return (...values) => {
+        commands.push({method:key, args:JSON.parse(JSON.stringify(values))});
+        return object[key](...values);
+      };
+    },
+    set(object, key, value) { commands.push({property:key, value}); object[key] = value; return true; },
+  });
+  const source = normalizeSlide(slides[index], index, total);
   const goalSlide = Array.isArray(goal.slides) ? goal.slides[index] || {} : {};
-  const slide = pptx.addSlide(`DASHI_${themeId.toUpperCase()}`);
+  if (Array.isArray(slides[index].elements) && slides[index].elements.length) {
+    renderElements(slide, slides[index]);
+    if (source.speakerNotes) slide.addNotes(source.speakerNotes);
+  } else {
   slide.background = { color: profile.bg };
   addThemeAtmosphere(slide, profile, index);
   if (index === 0 || source.role === 'cover') renderCover(slide, source, profile, deck, index);
-  else renderBody(slide, source, profile, goalSlide, index, slides.length);
-  addChrome(slide, source, profile, themeId, index, slides.length);
+  else renderBody(slide, source, profile, goalSlide, index, total);
+  addChrome(slide, source, profile, themeId, index, total);
   if (source.speakerNotes && typeof slide.addNotes === 'function') slide.addNotes(source.speakerNotes);
+  }
+  if (cacheFile) {
+    fs.mkdirSync(path.dirname(cacheFile), {recursive:true});
+    fs.writeFileSync(`${cacheFile}.tmp`, JSON.stringify(commands));
+    fs.renameSync(`${cacheFile}.tmp`, cacheFile);
+  }
+  if (args['page-output']) {
+    fs.mkdirSync(args['page-output'], {recursive:true});
+    const snapshot = path.join(args['page-output'], `page-${index + 1}.pptx`);
+    await pptx.writeFile({fileName:snapshot + '.tmp.pptx'});
+    fs.renameSync(snapshot + '.tmp.pptx', snapshot);
+  }
+  console.log(JSON.stringify({type:'page_ready', page:index + 1, revision:cacheKey, reused:false}));
 }
 
 fs.mkdirSync(path.dirname(path.resolve(args.out)), { recursive: true });
 await pptx.writeFile({ fileName: path.resolve(args.out) });
 console.log(JSON.stringify({ file: path.resolve(args.out), slides: slides.length, theme: themeId, renderer: 'pptxgenjs-native-v1' }));
+
+function renderElements(slide, raw) {
+  const color = (value, fallback) => /^#?[0-9a-f]{6}$/i.test(String(value || '')) ? String(value).replace('#', '') : fallback;
+  const finite = (value, fallback) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  const background = color(raw.background?.color, profile.bg);
+  slide.background = {color: background};
+  const fg = parseInt(background.slice(0, 2), 16) * .299 + parseInt(background.slice(2, 4), 16) * .587 + parseInt(background.slice(4), 16) * .114 < 128 ? 'FFFFFF' : '171717';
+  for (const el of raw.elements) {
+    const x = Math.max(0, Math.min(99, finite(el.x, 6))), y = Math.max(0, Math.min(99, finite(el.y, 6)));
+    const w = Math.max(.1, Math.min(100 - x, finite(el.w, 88))), h = Math.max(.1, Math.min(100 - y, finite(el.h, 16)));
+    const box = {x: x / 100 * 13.333333, y: y / 100 * 7.5, w: w / 100 * 13.333333, h: h / 100 * 7.5};
+    const textOpts = {...box, fontFace: el.font_name || profile.fontZh, fontSize: finite(el.font_size, 20), color: color(el.color, fg), bold: Boolean(el.bold), italic: Boolean(el.italic), align: ['left','center','right','justify'].includes(el.align) ? el.align : 'left', margin: 0, valign: 'top', breakLine: false, fit: 'shrink'};
+    if (el.kind === 'image') {
+      const src = el.src || el.image_data;
+      if (/^data:image\/(png|jpe?g|gif|webp);base64,/i.test(src || '')) {
+        slide.addImage({data: src, ...box, sizing: {type: el.object_fit === 'contain' ? 'contain' : 'cover', w: box.w, h: box.h}});
+      }
+    } else if (el.kind === 'table') {
+      const rows = [...(el.headers?.length ? [el.headers] : []), ...(el.rows || [])];
+      if (rows.length) slide.addTable(rows, {...textOpts, border: {pt:.5, color: color(el.border_color, 'CCCCCC')}, margin: 4, autoPage:false});
+    } else if (el.kind === 'divider') {
+      slide.addShape(pptx.ShapeType.line, {...box, h:0, line:{color:color(el.color, profile.accent), width:1.5}});
+    } else if (el.kind === 'progress_bar') {
+      const fraction = Math.max(0, Math.min(1, finite(el.value, 0) / Math.max(1, finite(el.max_value || el.max, 100))));
+      slide.addText(String(el.label || ''), {...textOpts, h: box.h * .65, fontSize:14});
+      const track = {...box,y:box.y + box.h * .7,h:box.h * .2};
+      slide.addShape(pptx.ShapeType.rect,{...track,fill:{color:color(el.track_color,'CCCCCC')},line:{transparency:100}});
+      if(fraction) slide.addShape(pptx.ShapeType.rect,{...track,w:box.w*fraction,fill:{color:color(el.bar_color,profile.accent)},line:{transparency:100}});
+    } else {
+      if (['shape','callout','quote'].includes(el.kind)) {
+        const names = {rectangle:'rect',rounded_rectangle:'roundRect',circle:'ellipse',oval:'ellipse',arrow_right:'rightArrow',arrow_left:'leftArrow'};
+        const name = names[el.shape_type] || el.shape_type || 'rect';
+        slide.addShape(pptx.ShapeType[name] || pptx.ShapeType.rect, {...box, fill:{color:color(el.fill_color || el.background_color,profile.accent)},line:{color:color(el.border_color,profile.accent),transparency:el.border_color ? 0 : 100}});
+      }
+      if (Array.isArray(el.items)) {
+        slide.addText(el.items.map((text,i)=>({text:String(text),options:{breakLine:true,bullet:el.kind === 'numbered_list' ? {type:'ul', style:'arabicPeriod', numberStartAt:i+1} : {indent:14}}})),textOpts);
+      } else if (el.text) slide.addText(String(el.text),textOpts);
+    }
+  }
+}
 
 function parseArgs(values) {
   const out = {};
@@ -231,7 +311,7 @@ function renderResult(slide, source, p) {
 
 function addChrome(slide, source, p, themeId, index, count) {
   slide.addText(`${themeId.toUpperCase()} · ${p.name}`, { x: 0.76, y: 7.05, w: 4.0, h: 0.2, fontFace: p.font, fontSize: 7.5, bold: true, color: p.muted, charSpacing: 1.0, margin: 0 });
-  slide.addText(`${String(index + 1).padStart(2, '0')} / ${String(count).padStart(2, '0')}`, { x: 11.55, y: 7.03, w: 0.95, h: 0.22, fontFace: p.font, fontSize: 8, color: p.muted, align: 'right', margin: 0 });
+  slide.addText(`${String(index + 1).padStart(2, '0')}${count ? ` / ${String(count).padStart(2, '0')}` : ''}`, { x: 11.55, y: 7.03, w: 0.95, h: 0.22, fontFace: p.font, fontSize: 8, color: p.muted, align: 'right', margin: 0 });
 }
 
 function addKeywordRail(slide, points, p, x, y, width, centered) {

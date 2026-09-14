@@ -170,7 +170,7 @@ HTML 版与导出 PPTX 版的逐页对比：
 npm --prefix <project目录> run export:pptx -- --goal <输出目录>/goal.json --out 输出.pptx
 ```
 
-## FAQ
+## 常见问题
 
 **能导出可编辑的 PPTX 吗？**
 > 能。虽然 PPT 无法拥有 HTML 的全量能力，但我们尽最大可能保留了可编辑性。
@@ -197,7 +197,7 @@ npm --prefix <project目录> run export:pptx -- --goal <输出目录>/goal.json 
 
 Copyright (c) 2026 [chuspeeism](https://github.com/chuspeeism)。完整协议文本见根目录 [LICENSE](LICENSE) 文件。如需 AGPL-3.0 之外的商业授权，请联系作者。
 
-## Star History
+## Star 历史
 
 <a href="https://www.star-history.com/?repos=chuspeeism%2Fdashi-ppt-skill&type=date&legend=top-left">
  <picture>

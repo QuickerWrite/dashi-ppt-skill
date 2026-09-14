@@ -14,6 +14,7 @@ const host = process.env.QW_RUNNER_HOST || '0.0.0.0';
 const port = Number(process.env.QW_RUNNER_PORT || 8080);
 const secret = process.env.QW_RUNNER_SHARED_SECRET || '';
 const jobs = new Map();
+const sessionQueues = new Map();
 fs.mkdirSync(outputRoot, { recursive: true });
 
 function json(res, status, value) { const body = Buffer.from(JSON.stringify(value)); res.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': body.length }); res.end(body); }
@@ -26,11 +27,18 @@ function auth(req, body = Buffer.alloc(0)) {
   const a = Buffer.from(supplied, 'hex'); const b = Buffer.from(expected, 'hex');
   return a.length === b.length && a.length > 0 && crypto.timingSafeEqual(a, b);
 }
-async function body(req) { const chunks = []; let size = 0; for await (const chunk of req) { size += chunk.length; if (size > 3 * 1024 * 1024) throw new Error('request too large'); chunks.push(chunk); } return Buffer.concat(chunks); }
-function exec(command, args) {
+async function body(req) { const chunks = []; let size = 0; for await (const chunk of req) { size += chunk.length; if (size > 32 * 1024 * 1024) throw new Error('request too large'); chunks.push(chunk); } return Buffer.concat(chunks); }
+function exec(command, args, onEvent) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { cwd: project, env: { ...process.env, INIT_CWD: project }, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = ''; child.stdout.on('data', x => { output = (output + x).slice(-10000); }); child.stderr.on('data', x => { output = (output + x).slice(-10000); });
+    let pending = '';
+    child.stdout.on('data', x => { pending += x; let end; while ((end = pending.indexOf('\n')) >= 0) {
+      const line = pending.slice(0, end); pending = pending.slice(end + 1);
+      try { onEvent?.(JSON.parse(line)); } catch { /* non-event log line */ }
+    }});
+    const timer = setTimeout(() => child.kill('SIGKILL'), 120000);
+    child.on('close', () => clearTimeout(timer));
     child.on('error', reject); child.on('exit', code => code === 0 ? resolve(output) : reject(new Error(`${command} exited ${code}: ${output}`)));
   });
 }
@@ -55,6 +63,35 @@ async function generate(id, spec) {
   const job = jobs.get(id); const dir = path.join(outputRoot, id); const pptDir = path.join(dir, 'ppt');
   try {
     fs.mkdirSync(pptDir, { recursive: true });
+    if (spec.incremental === true) {
+      const requested = Array.isArray(spec.outputs) ? spec.outputs : ['pptx'];
+      if (!requested.length || requested.some(kind => kind !== 'pptx')) {
+        throw new Error('incremental mode supports pptx output only; use non-incremental mode for html');
+      }
+      const sessionId = crypto.createHash('sha256').update(String(spec.task_id || id)).digest('hex');
+      const sessionDir = path.join(outputRoot, 'sessions', sessionId);
+      fs.mkdirSync(sessionDir, {recursive:true});
+      const configPath = path.join(sessionDir, 'config.json');
+      const configuration = fs.existsSync(configPath) ? JSON.parse(fs.readFileSync(configPath)) : {
+        theme:theme(spec.theme, spec.title), planned_slides:Number(spec.planned_slides) || 0,
+      };
+      if (!fs.existsSync(configPath)) fs.writeFileSync(configPath, JSON.stringify(configuration));
+      const specFile = path.join(dir, 'spec.json');
+      fs.writeFileSync(specFile, JSON.stringify({...spec, ...configuration}));
+      Object.assign(job, {status:'running', stage:'rendering_pages', pages:[], session_id:sessionId});
+      const fileName = `${safe(spec.title)}.pptx`;
+      await exec(process.execPath, [path.join(project, 'scripts/export-native-pptx.mjs'),
+        '--spec', specFile, '--out', path.join(dir, fileName),
+        '--page-cache', path.join(sessionDir, 'pages'), '--page-output', path.join(dir, 'pages')], event => {
+        if (event.type !== 'page_ready') return;
+        const page = {...event, sequence:job.pages.length + 1,
+          download_url:event.reused ? null : `/v1/jobs/${id}/pages/${event.page}`};
+        job.pages.push(page); job.progress = Math.floor(event.page / spec.slides.length * 95);
+      });
+      Object.assign(job, {status:'succeeded', stage:'completed', progress:100, theme:configuration.theme,
+        artifacts:[{type:'pptx',file_name:fileName,mime_type:'application/vnd.openxmlformats-officedocument.presentationml.presentation',download_url:`/v1/jobs/${id}/artifacts/pptx`}]});
+      return;
+    }
     const content = briefs(spec); if (!content.length) throw new Error('slides must not be empty');
     const briefsFile = path.join(dir, 'briefs.json'); const specFile = path.join(dir, 'spec.json'); const goal = path.join(dir, 'goal.json'); const html = path.join(pptDir, 'index.html');
     fs.writeFileSync(briefsFile, JSON.stringify(content, null, 2)); fs.writeFileSync(specFile, JSON.stringify(spec, null, 2)); const selectedTheme = theme(spec.theme, spec.title);
@@ -80,7 +117,7 @@ function sourceArchive() { const target = path.join(outputRoot, 'dashi-ppt-skill
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url || '/', 'http://runner.local');
-  if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, engine: 'dashi' });
+  if (req.method === 'GET' && url.pathname === '/health') return json(res, 200, { ok: true, engine: 'dashi', capabilities:{incremental_pages:true,page_cache:true} });
   if (req.method === 'GET' && url.pathname === '/source') return json(res, 200, { license: 'AGPL-3.0', download_url: '/source/archive' });
   if (req.method === 'GET' && url.pathname === '/source/archive') { try { const target = sourceArchive(); const data = fs.readFileSync(target); res.writeHead(200, { 'content-type': 'application/gzip', 'content-disposition': 'attachment; filename="dashi-ppt-skill-source.tar.gz"', 'content-length': data.length }); return res.end(data); } catch (error) { return json(res, 500, { error: String(error.message) }); } }
   if (req.method === 'GET' && new Set([
@@ -92,9 +129,16 @@ http.createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/v1/jobs') {
     let spec; try { spec = JSON.parse(raw.toString('utf8')); } catch { return json(res, 400, { error: 'invalid JSON' }); }
     if (spec.protocol_version !== '1.0') return json(res, 400, { error: 'unsupported protocol_version' });
-    const id = crypto.randomUUID(); jobs.set(id, { job_id: id, status: 'queued', progress: 0, stage: 'queued', artifacts: [], engine_version: '0.4.11+quickerwrite-runner-v2', source_offer_url: '/source' }); setImmediate(() => generate(id, spec)); return json(res, 202, jobs.get(id));
+    const id = crypto.randomUUID(); jobs.set(id, { job_id: id, status: 'queued', progress: 0, stage: 'queued', artifacts: [], engine_version: '0.4.11+quickerwrite-runner-v3', source_offer_url: '/source' });
+    const queueKey = String(spec.task_id || id);
+    const operation = (sessionQueues.get(queueKey) || Promise.resolve()).then(() => generate(id,spec));
+    sessionQueues.set(queueKey,operation);
+    operation.finally(() => { if (sessionQueues.get(queueKey) === operation) sessionQueues.delete(queueKey); });
+    return json(res, 202, jobs.get(id));
   }
   const match = url.pathname.match(/^\/v1\/jobs\/([0-9a-f-]+)$/); if (req.method === 'GET' && match) { const job = jobs.get(match[1]); return job ? json(res, 200, job) : json(res, 404, { error: 'job not found' }); }
+  const pageMatch = url.pathname.match(/^\/v1\/jobs\/([0-9a-f-]+)\/pages\/(\d+)$/);
+  if (req.method === 'GET' && pageMatch) return file(res, path.join(outputRoot,pageMatch[1],'pages',`page-${pageMatch[2]}.pptx`), 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
   const artifact = url.pathname.match(/^\/v1\/jobs\/([0-9a-f-]+)\/artifacts\/(html|pptx)$/);
   if (req.method === 'GET' && artifact) { const [, id, kind] = artifact; const dir = path.join(outputRoot, id); if (kind === 'html') return file(res, path.join(dir, 'ppt/index.html'), 'text/html; charset=utf-8'); const meta = jobs.get(id)?.artifacts?.find(x => x.type === kind); return meta ? file(res, path.join(dir, meta.file_name), meta.mime_type) : json(res, 404, { error: 'artifact not found' }); }
   return json(res, 404, { error: 'not found' });

@@ -733,8 +733,10 @@ function pickLayout({
         : isCoverCandidate(item.layout)
     ));
   const distinct = compatible.filter(item => !used.has(item.layout));
-  if (!distinct.length) throw new Error(`No distinct ${body ? 'body' : 'cover'} layout available for role "${role}" in ${themePack}`);
-  const candidates = distinct;
+  if (!compatible.length) throw new Error(`No compatible ${body ? 'body' : 'cover'} layout available for role "${role}" in ${themePack}`);
+  // A long deck may exhaust the theme's layout inventory. Reusing a compatible
+  // layout is valid; uniqueness is a preference, not a page-count limit.
+  const candidates = distinct.length ? distinct : compatible;
   // 从前 5 名合格候选里 seeded 随机挑:打分只有一两个精确命中时,永远取第一会让
   // 不同用户的骨架在这些 role 上完全一致;候选都已通过过滤(均"符合"),前几名之间
   // 的分差只是相关性排序,随机采样是多样性与相关性的折衷。
