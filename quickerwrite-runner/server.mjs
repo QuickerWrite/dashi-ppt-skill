@@ -85,7 +85,7 @@ async function generate(id, spec) {
         '--page-cache', path.join(sessionDir, 'pages'), '--page-output', path.join(dir, 'pages')], event => {
         if (event.type !== 'page_ready') return;
         const page = {...event, sequence:job.pages.length + 1,
-          download_url:event.reused ? null : `/v1/jobs/${id}/pages/${event.page}`};
+          download_url:`/v1/jobs/${id}/pages/${event.page}`};
         job.pages.push(page); job.progress = Math.floor(event.page / spec.slides.length * 95);
       });
       Object.assign(job, {status:'succeeded', stage:'completed', progress:100, theme:configuration.theme,

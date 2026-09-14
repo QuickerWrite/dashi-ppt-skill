@@ -35,7 +35,6 @@ pptx.defineSlideMaster({
   title: `DASHI_${themeId.toUpperCase()}`,
   background: { color: profile.bg },
   objects: [],
-  slideNumber: { x: 12.25, y: 7.05, w: 0.6, h: 0.22, color: profile.muted, fontFace: profile.font, fontSize: 8, align: 'right' },
 });
 
 for (let index = 0; index < slides.length; index += 1) {
@@ -47,6 +46,12 @@ for (let index = 0; index < slides.length; index += 1) {
     for (const command of readJson(cacheFile)) {
       if (command.property) target[command.property] = command.value;
       else target[command.method](...command.args);
+    }
+    if (args['page-output']) {
+      fs.mkdirSync(args['page-output'], {recursive:true});
+      const snapshot = path.join(args['page-output'], `page-${index + 1}.pptx`);
+      await pptx.writeFile({fileName:snapshot + '.tmp.pptx'});
+      fs.renameSync(snapshot + '.tmp.pptx', snapshot);
     }
     console.log(JSON.stringify({type:'page_ready', page:index + 1, revision:cacheKey, reused:true}));
     continue;
