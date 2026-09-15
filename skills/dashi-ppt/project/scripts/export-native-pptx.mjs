@@ -77,7 +77,6 @@ for (let index = 0; index < slides.length; index += 1) {
   addThemeAtmosphere(slide, profile, index);
   if (index === 0 || source.role === 'cover') renderCover(slide, source, profile, deck, index);
   else renderBody(slide, source, profile, goalSlide, index, total);
-  addChrome(slide, source, profile, themeId, index, total);
   if (source.speakerNotes && typeof slide.addNotes === 'function') slide.addNotes(source.speakerNotes);
   }
   if (cacheFile) {
@@ -245,7 +244,6 @@ function renderEditorial(slide, source, p, index, count) {
     slide.addShape(pptx.ShapeType.line, { x: 1.35, y: y + 0.04, w: width, h: 0, line: { color: p.line, width: 0.7 } });
     slide.addText(point, { x: 1.35, y: y + 0.13, w: width, h: 0.42, fontFace: p.fontZh, fontSize: 18, color: p.text, margin: 0, breakLine: false, fit: 'shrink' });
   });
-  slide.addText(String(index + 1).padStart(2, '0'), { x: 9.55, y: 1.8, w: 2.5, h: 2.25, fontFace: p.font, fontSize: 92, bold: true, color: p.accent, transparency: p.mode === 'dark' ? 58 : 72, margin: 0, align: 'right' });
   slide.addText(`${points.length} KEY POINTS`, { x: 9.65, y: 4.32, w: 2.4, h: 0.28, fontFace: p.font, fontSize: 9, bold: true, color: p.muted, charSpacing: 1.4, margin: 0, align: 'right' });
 }
 
@@ -314,13 +312,9 @@ function renderResult(slide, source, p) {
   slide.addText('NEXT', { x: 9.45, y: 4.15, w: 3.4, h: 0.55, fontFace: p.font, fontSize: 25, bold: true, color: p.accent, align: 'center', charSpacing: 3, margin: 0 });
 }
 
-function addChrome(slide, source, p, themeId, index, count) {
-  slide.addText(`${themeId.toUpperCase()} · ${p.name}`, { x: 0.76, y: 7.05, w: 4.0, h: 0.2, fontFace: p.font, fontSize: 7.5, bold: true, color: p.muted, charSpacing: 1.0, margin: 0 });
-  slide.addText(`${String(index + 1).padStart(2, '0')}${count ? ` / ${String(count).padStart(2, '0')}` : ''}`, { x: 11.55, y: 7.03, w: 0.95, h: 0.22, fontFace: p.font, fontSize: 8, color: p.muted, align: 'right', margin: 0 });
-}
-
 function addKeywordRail(slide, points, p, x, y, width, centered) {
-  const values = points.length ? points.slice(0, 4) : [p.name, 'NATIVE PPTX', 'EDITABLE'];
+  const values = points.slice(0, 4);
+  if (!values.length) return;
   const itemW = Math.min(1.85, (width - 0.18 * (values.length - 1)) / values.length);
   const total = itemW * values.length + 0.18 * (values.length - 1);
   const start = centered ? x + (width - total) / 2 : x;
