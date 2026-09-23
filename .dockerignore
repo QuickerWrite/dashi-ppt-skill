@@ -1,0 +1,15 @@
+.git
+.github
+.claude-plugin
+npm-dist
+.runner-output
+README.en.md
+skills/dashi-ppt/README.md
+skills/dashi-ppt/SKILL.md
+skills/dashi-ppt/agents
+skills/dashi-ppt/references
+skills/dashi-ppt/scripts
+skills/dashi-ppt/assets/skill/dashi-ppt-favicon.png
+skills/dashi-ppt/assets/skill/dashi-ppt-small.png
+skills/dashi-ppt/assets/skill/dashi-ppt.png
+**/node_modules

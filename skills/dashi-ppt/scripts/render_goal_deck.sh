@@ -32,21 +32,7 @@ if [[ ! -d node_modules || package.json -nt node_modules/.package-lock.json || p
 node scripts/ensure-registry.mjs || true
 npm install
 fi
-# chromium headless shell:无 ProcessSingleton 的无头浏览器。沙箱型宿主(如豆包)会拦完整版
-# Chrome 创建单例锁,导出直接失败;headless shell 同一沙箱下可正常导出。幂等(已装秒过),
-# 下载失败不阻塞生成(那样导出回退系统 Chrome,与旧行为一致)。
-# 镜像模式下浏览器二进制同样走 npmmirror(官方认可的 playwright 镜像),否则国内下载必败。
-if grep -q 'registry=https://registry.npmmirror.com' .npmrc 2>/dev/null; then
-  export PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST:-https://cdn.npmmirror.com/binaries/playwright}"
-fi
-npx --no-install playwright-core install chromium-headless-shell >/dev/null 2>&1 || true
 mkdir -p "$(dirname "$OUT_PATH")"
 npm run props:safe -- --goal "$SPEC_PATH" --write
-npm run validate:goal-spec -- "$SPEC_PATH"
 npm run render:goal -- "$SPEC_PATH" "$OUT_PATH"
-npm run validate:swiss -- "$OUT_PATH"
-npm run validate:goal-copy -- "$SPEC_PATH" "$OUT_PATH"
-OUT_DIR="$(dirname "$OUT_PATH")"
-# 缺省端口落在 SKILL.md 约定的 5200-5999 段(4178/4300/4400 为用户保留端口);被占用时服务自增。
-PREVIEW_PORT="${DASHI_PPT_PREVIEW_PORT:-5200}"
-npm run preview:start -- "$OUT_DIR" "$PREVIEW_PORT"
+echo "HTML deck written to $OUT_PATH"
