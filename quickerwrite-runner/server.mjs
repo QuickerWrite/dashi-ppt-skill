@@ -133,7 +133,7 @@ http.createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/v1/jobs') {
     let spec; try { spec = JSON.parse(raw.toString('utf8')); } catch { return json(res, 400, { error: 'invalid JSON' }); }
     if (spec.protocol_version !== '1.0') return json(res, 400, { error: 'unsupported protocol_version' });
-    const id = crypto.randomUUID(); jobs.set(id, { job_id: id, status: 'queued', progress: 0, stage: 'queued', artifacts: [], engine_version: '0.4.11+quickerwrite-runner-v3', source_offer_url: '/source' });
+    const id = crypto.randomUUID(); jobs.set(id, { job_id: id, status: 'queued', progress: 0, stage: 'queued', artifacts: [], engine_version: '0.4.14-quickerwrite.1', source_offer_url: '/source' });
     const queueKey = String(spec.task_id || id);
     const operation = (sessionQueues.get(queueKey) || Promise.resolve()).then(() => generate(id,spec));
     sessionQueues.set(queueKey,operation);
