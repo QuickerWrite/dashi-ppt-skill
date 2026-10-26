@@ -19,15 +19,15 @@ new snapshot URL; their output is included in the job's assembled PPTX. Page eve
 are emitted only after native page rendering/persistence succeeds.
 
 The health response advertises capabilities.incremental_pages and page_cache.
-The implementation remains in this AGPL fork. No Django models, user records,
+The implementation remains in this AGPL fork. No Go API or Python Worker models, user records,
 storage credentials or QuickerWrite source modules are imported. The public JSON
 protocol and returned artifacts are the only integration boundary. Modified source
 is included in the existing /source/archive offer.
 
 Runner 始终保留在 Dashi 的 AGPL-3.0 仓库中，对外提供 QuickerWrite 中立 JSON
-v1 协议。QuickerWrite 将本仓库克隆到 `api/ppt_engines`，由 Django API 启动链
-自动托管；部署者无需单独启动，也不填写 Runner URL。商业核心只通过固定内部
-HTTP 端点调用，不导入 Dashi 运行时代码。
+v1 协议。QuickerWrite 的引擎锁文件固定本仓库版本，构建和部署编排负责提供
+独立的 PPT 引擎服务。Go API 与 Python 文档 Worker 只通过内部 HTTP 协议调用，
+不导入 Dashi 运行时代码；部署边界以服务端仓库为准。
 
 ## 本 fork 的修改
 
