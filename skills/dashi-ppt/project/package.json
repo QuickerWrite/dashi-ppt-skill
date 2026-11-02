@@ -23,15 +23,15 @@
     "gsap": "^3.15.0",
     "html-to-image": "^1.11.13",
     "pptxgenjs": "^4.0.1",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
   },
   "devDependencies": {
-    "tsx": "^4.20.0",
     "esbuild": "^0.28.2",
-    "pngjs": "^7.0.0",
+    "pdf-lib": "^1.17.1",
     "playwright-core": "^1.60.0",
-    "pdf-lib": "^1.17.1"
+    "pngjs": "^7.0.0",
+    "tsx": "^4.20.0"
   },
   "overrides": {
     "image-size": "2.0.4"
