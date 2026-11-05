@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { renderNeutralHtml } from './html.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const skillRoot = path.join(root, 'skills/dashi-ppt');
@@ -63,6 +64,28 @@ async function generate(id, spec) {
   const job = jobs.get(id); const dir = path.join(outputRoot, id); const pptDir = path.join(dir, 'ppt');
   try {
     fs.mkdirSync(pptDir, { recursive: true });
+    const outputKinds = Array.isArray(spec.outputs) ? spec.outputs : ['html'];
+    if (outputKinds.includes('html')) {
+      if (outputKinds.some(kind => !['html', 'pptx'].includes(kind))) throw new Error('Unsupported output format');
+      const selectedTheme = theme(spec.theme, spec.title);
+      job.status = 'running'; job.stage = 'rendering_html'; job.progress = 20;
+      const html = renderNeutralHtml(spec, selectedTheme);
+      fs.writeFileSync(path.join(pptDir, 'index.html'), html);
+      // Only announce pages once the actual HTML has been persisted.
+      job.pages = spec.slides.map((slide, index) => ({type:'page_ready',page:index+1,
+        revision:crypto.createHash('sha256').update(JSON.stringify([slide,selectedTheme])).digest('hex'),
+        sequence:index+1,reused:false}));
+      const artifacts = [{type:'html',file_name:`${safe(spec.title)}.html`,mime_type:'text/html; charset=utf-8',download_url:`/v1/jobs/${id}/artifacts/html`}];
+      if (outputKinds.includes('pptx')) {
+        const specFile = path.join(dir, 'spec.json');
+        const fileName = `${safe(spec.title)}.pptx`;
+        fs.writeFileSync(specFile, JSON.stringify({...spec,theme:selectedTheme}));
+        await exec(process.execPath, [path.join(project,'scripts/export-native-pptx.mjs'),'--spec',specFile,'--out',path.join(dir,fileName)]);
+        artifacts.push({type:'pptx',file_name:fileName,mime_type:'application/vnd.openxmlformats-officedocument.presentationml.presentation',download_url:`/v1/jobs/${id}/artifacts/pptx`});
+      }
+      Object.assign(job, {artifacts,status:'succeeded',progress:100,stage:'completed',theme:selectedTheme,html_renderer:'neutral-theme-html-v1'});
+      return;
+    }
     if (spec.incremental === true) {
       const requested = Array.isArray(spec.outputs) ? spec.outputs : ['pptx'];
       if (!requested.length || requested.some(kind => kind !== 'pptx')) {

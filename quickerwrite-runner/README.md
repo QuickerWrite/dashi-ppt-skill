@@ -9,8 +9,9 @@ render output. Requests for the same task are serialized. Cache files survive ru
 restart. A changed page invalidates only that page; finalization reuses the last
 published file when no content changed.
 
-Incremental requests support `outputs: ["pptx"]` only; other formats are rejected
-explicitly. The ordinary non-incremental mode continues to support HTML and PPTX.
+The legacy native incremental path supports `outputs: ["pptx"]`. Requests that
+include HTML use the HTML-first path described below, persist the complete deck,
+and then report page readiness; they do not claim native page-cache reuse.
 
 GET /v1/jobs/{id} exposes ordered pages entries with type=page_ready, page,
 revision, reused, sequence and download_url. GET /v1/jobs/{id}/pages/{page} serves
@@ -64,7 +65,18 @@ docker run --rm -p 127.0.0.1:5802:8080 \
 ```
 
 预览读取本仓库的 `theme-style-grid.png`，运行时不依赖 GitHub 图片。`auto`
-根据标题从 12 套主题中选择，也可直接指定 `theme01` 至 `theme12`。HTML 与
-PPTX 使用同一份中立内容；HTML 保留交互主题，PPTX 用原生 Office 图元尽量保持
-配色、层级、构图节奏和主题装饰。CSS 动画和滤镜无法逐像素写入 OOXML，但不会
-以牺牲可编辑性为代价伪造一致性。
+根据标题从 12 套主题中选择，也可直接指定 `theme01` 至 `theme12`。默认 HTML 使用中立内容与现有主题配置，保持自包含、静态和可转换。
+Worker 依据该 HTML 的实际浏览器布局输出可编辑 PPTX。显式 native PPTX 请求
+保留旧导出方式；它与 HTML 转换路径不同，不能用其结果冒充 HTML 转换产物。
+
+## HTML-first conversion
+
+Requests containing `outputs: ["html"]` now render a self-contained deck from
+neutral content with `quickerwrite-runner/html.mjs` and the existing Dashi theme
+profiles. This path does not use unfilled sample theme props or lazy JavaScript
+hydration. Text, lists, tables and embedded images come from the request; page
+notifications are emitted only after the HTML has been persisted. The Worker
+converts that HTML into editable PPTX, renders the actual PPTX, and performs visual
+review. Precision repairs patch the existing PPTX rather than rerunning Dashi.
+The explicit native PPTX export remains available for legacy callers. Package
+`html.mjs` with `server.mjs` when publishing this fork.
