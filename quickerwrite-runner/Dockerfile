@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim
+FROM node:26.10.0-bookworm-slim
 WORKDIR /opt/dashi-ppt-skill
 COPY --chown=node:node LICENSE README.md ./
 COPY --chown=node:node quickerwrite-runner ./quickerwrite-runner
